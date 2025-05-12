@@ -1,6 +1,6 @@
 import sqlite3
 from typing import List, Any
-import logging
+
 from utils import *
 
 '''
@@ -77,50 +77,14 @@ def news_discuss():
 '''
 
 
-def subject_search(subject: str, s: str):
-    subject = subject.split(',')
-    res = []
-    for i in subject:
-        if s in i:
-            return True
-    return False
-
-
-def user_cnt():
+def get_user_discuss(uid):
     c = get_cursor()
-    c[1].execute("SELECT * FROM users;")
-    ans = len(c[1].fetchall())
-    c[0].commit()
-    c[0].close()
-    return ans
-
-
-def dis_cnt():
-    c = get_cursor()
-    c[1].execute("SELECT * FROM discuss;")
-    ans = len(c[1].fetchall())
-    c[0].commit()
-    c[0].close()
-    return ans
-
-
-def res_cnt():
-    c = get_cursor()
-    c[1].execute("SELECT * FROM resource;")
-    ans = len(c[1].fetchall())
-    c[0].commit()
-    c[0].close()
-    return ans
-
-
-def get_user_discuss(uid, cc = True):
-    c = get_cursor()
-    c[1].execute(f"SELECT * FROM discuss WHERE pub = ? AND temp = 0;", (uid, ))
+    c[1].execute(f"SELECT * FROM discuss WHERE pub = {uid}")
     ls = c[1].fetchall()
     ls2 = []
 
     for i in ls:
-        if not i[8] and '评论回复' not in i[3] and '私信' not in i[3]:  # and i[0] != now:
+        if not i[8] and i[0] != now:
             ls2.append(i)
     # for i in c[1].fetchall():
     #     #if i[4] == pub_id:
@@ -128,38 +92,17 @@ def get_user_discuss(uid, cc = True):
     # ls = [i for i in ls if now and i != now]
     ls2 = ls2[::-1]
     ls1 = []
-    if cc:
-        logging.info(f"未裁减个人论坛列表：{ls2}")
-        if len(ls2) > 10:
-            for i in range(10):
-                ls1.append(ls2[i])
-        else:
-            for i in ls2:
-                ls1.append(i)
-        logging.info(f"裁减后个人论坛列表：{ls1}")
+    print(f"未裁减个人论坛列表：{ls2}")
+    if len(ls2) > 10:
+        for i in range(10):
+            ls1.append(ls2[i])
     else:
-        ls1 = ls2
+        for i in ls2:
+            ls1.append(i)
+    print(f"裁减后个人论坛列表：{ls1}")
     c[0].commit()
     c[0].close()
     return ls1
-
-def get_user_discuss2(uid):
-    c = get_cursor()
-    c[1].execute(f"SELECT * FROM discuss WHERE pub = ? AND temp = 1;", (uid, ))
-    ls = c[1].fetchall()
-    ls2 = []
-   
-    for i in ls:
-        if i[8] and '评论回复' not in i[3] and '私信' not in i[3]:  # and i[0] != now:
-            ls2.append(i)
-    # for i in c[1].fetchall():
-    #     #if i[4] == pub_id:
-    #     print(i)
-    # ls = [i for i in ls if now and i != now]
-    ls2 = ls2[::-1]
-    c[0].commit()
-    c[0].close()
-    return ls2
 
 
 def get_discuss(id):
@@ -172,12 +115,12 @@ def all_discuss(father=None, pub=None, visiter=None, not_toped=False):
     c = get_cursor()
     if pub:
         if father:
-            c[1].execute(f"SELECT * FROM discuss WHERE father = ? AND pub = ?", (father, pub))
+            c[1].execute(f"SELECT * FROM discuss WHERE father = {father}, pub = {pub}")
         else:
-            c[1].execute(f"SELECT * FROM discuss WHERE pub = ?", (pub, ))
+            c[1].execute(f"SELECT * FROM discuss WHERE pub = {pub}")
     else:
         if father:
-            c[1].execute(f"SELECT * FROM discuss WHERE father = ?", (father, ))
+            c[1].execute(f"SELECT * FROM discuss WHERE father = {father}")
         else:
             c[1].execute("SELECT * FROM discuss")
     ls = c[1].fetchall()
@@ -196,59 +139,24 @@ def all_discuss(father=None, pub=None, visiter=None, not_toped=False):
             toped.append(item)
         else:
             normal.append(item)
-    cn = []
-    for item in normal:
+    normal = reversed(normal)
+    toped.extend(normal)
+    ans = toped
+    cans = []
+    for item in ans:
         if item[8] == 0:
-            cn.append(item)
+            cans.append(item)
     c[0].commit()
     c[0].close()
-    return (toped, cn)
-
-
-def all_resource(father=None):
-    c = get_cursor()
-    if father:
-        c[1].execute(f"SELECT * FROM resource WHERE father = ?", (father, ))
-    else:
-        c[1].execute("SELECT * FROM resource")
-    ls = c[1].fetchall()
-    ls = sorted(ls, key=lambda s: s[4])
-    c[0].commit()
-    c[0].close()
-    return None, ls
-
-
-def get_sm(id, src):
-    # 由 src 发布的, id 用户可以看的, 主题有 私信 的所有discuss, 由新到旧排列
-    c = get_cursor()
-    c[1].execute("SELECT * FROM discuss;")
-    ls = c[1].fetchall()
-    ls = sorted(ls, key=lambda s: s[4])
-    c[0].commit()
-    c[0].close()
-    #print(ls)
-    flited = []
-    for item in ls:
-        if item[3] == '私信':
-            if src == None:
-                if item[6] == 'all' or item[5] == id or str(id) in item[6]:
-                    flited.append(Discuss(item[0]))
-            else:
-                if item[5] == src or item[5] == id:
-                    if item[6] == 'all' or str(id) in item[6] or str(src) in item[6]:
-                        flited.append(Discuss(item[0]))
-    flited.reverse()
-    #print(flited)
-    return flited
+    return cans
 
 
 class Discuss:
     def __init__(self, id):
         c = get_cursor()
-        logging.info("Try To Call " + str(id))
-        c[1].execute(f"SELECT * FROM discuss WHERE id = ?", (id, ))
+        c[1].execute(f"SELECT * FROM discuss WHERE id = '{id}'")
         dis = c[1].fetchall()[0]
-        logging.info(str(id) + "," + str(dis))
+        print(dis)
         self.info = dis  # 全部信息
         self.id = dis[0]
         if dis[9] == None:
@@ -272,12 +180,8 @@ class Discuss:
         self.subject = dis[3]
         self.pub_time = dis[4]
         self.pub_id = dis[5]
-        c[1].execute(f"SELECT * FROM users WHERE id = ?", (self.pub_id, ))
-        al = c[1].fetchall()
-        if len(al) == 0:
-            dat = (48, '游客', '', '游客', 0, 0, 0, 0, '48.png')
-        else:
-            dat = al[0]
+        c[1].execute(f"SELECT * FROM users WHERE id = {self.pub_id}")
+        dat = c[1].fetchall()[0]
         self.pub_name = dat[1]
         self.pub_pic = dat[8]
         self.pub_truename = dat[3]
@@ -304,7 +208,7 @@ class Discuss:
 
     def cos(self):  # 自洽
         c = get_cursor()
-        c[1].execute(f"SELECT * FROM users WHERE id = ?", (self.pub_id, ))
+        c[1].execute(f"SELECT * FROM users WHERE id = '{self.pub_id}'")
         dat = c[1].fetchone()
         self.pub_name = dat[1]
         self.pub_pic = dat[8]
@@ -343,7 +247,7 @@ class Discuss:
         self.cos()
         c = get_cursor()
         c[1].execute(
-            f"UPDATE discuss SET father = ?, title = ?, subject = ?, date = ?, pub = ?, csee = ?, top = ?, temp = ?, fname = ?, desc = ? WHERE id = ?", (self.father, self.title, self.subject, self.pub_time, self.pub_id, self.csee, self.top, self.temp, self.fname, self.desc, id))
+            f"UPDATE discuss SET father = {self.father}, title = '{self.title}', subject = '{self.subject}', date = '{self.pub_time}', pub = {self.pub_id}, csee = '{self.csee}', top = {self.top}, temp = {self.temp}, fname = '{self.fname}', desc = '{self.desc}' WHERE id = {id}")
         c[0].commit()
         c[0].close()
 
@@ -351,21 +255,17 @@ class Discuss:
         self.cos()
         c = get_cursor()
         c[1].execute(
-            f"INSERT INTO discuss (father, title, subject, date, pub, csee, top, temp, fname, desc) VALUES ({self.father}, '{self.title}', '{self.subject}', \"{self.pub_time}\", {self.pub_id}, '{self.csee}', {self.top}, {self.temp}, '{self.fname}', '{self.desc}')")
+            f"INSERT INTO discuss (father, title, subject, date, pub, csee, top, temp, fname, desc) VALUES ({self.father}, {self.title}, {self.subject}, {self.pub_time}, {self.pub_id}, {self.csee}, {self.top}, {self.temp}, {self.fname}, {self.desc})")
         nowid = c[1].lastrowid
         c[0].commit()
         c[0].close()
         return nowid
 
-    def insert_tr(self, vk=None):  # 自己复制一份插入到resourse
+    def insert_tr(self):  # 自己复制一份插入到resourse
         self.cos()
         c = get_cursor()
-        if not vk:
-            vk = self.fname
-        logging.info(
-            f"INSERT INTO resource (father, title, subject, date, pub, csee, top, temp, fname, desc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (self.father, self.title, self.subject, self.pub_time, self.pub_id, self.csee, self.top, self.temp, vk, self.desc)")
         c[1].execute(
-            f"INSERT INTO resource (father, title, subject, date, pub, csee, top, temp, fname, desc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (self.father, self.title, self.subject, self.pub_time, self.pub_id, self.csee, self.top, self.temp, vk, self.desc))
+            f"INSERT INTO resource (father, title, subject, date, pub, csee, top, temp, fname, desc) VALUES ({self.father}, {self.title}, {self.subject}, {self.pub_time}, {self.pub_id}, {self.csee}, {self.top}, {self.temp}, {self.fname}, {self.desc})")
         nowid = c[1].lastrowid
         c[0].commit()
         c[0].close()
@@ -374,98 +274,30 @@ class Discuss:
     @staticmethod
     def find_sw_discuss(pub, now=0):
         c = get_cursor()
-        c[1].execute(f"SELECT * FROM discuss WHERE pub = ?", (pub, ))
+        c[1].execute(f"SELECT * FROM discuss WHERE pub = {pub}")
         ls = c[1].fetchall()
         ls2 = []
 
         for i in ls:
-            if not i[8] and i[0] != now and '评论回复' not in i[3] and '私信' not in i[3]:
+            if not i[8] and i[0] != now:
                 ls2.append(i)
         # for i in c[1].fetchall():
         #     #if i[4] == pub_id:
-        #     logging.info(i)
+        #     print(i)
         # ls = [i for i in ls if now and i != now]
         ls2 = ls2[::-1]
         ls1 = []
-        logging.info(f"TaList2{ls2}")
+        print(f"未裁减个人论坛列表：{ls2}")
         if len(ls2) > 10:
             for i in range(10):
                 ls1.append(ls2[i])
         else:
             for i in ls2:
                 ls1.append(i)
-        logging.info(f"TaList1{ls1}")
+        print(f"裁减后个人论坛列表：{ls1}")
         c[0].commit()
         c[0].close()
         return ls1
-
-
-'''
-            
-id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-father INT,
-title TEXT,
-subject TEXT,   
-date TEXT NOT NULL,   
-pub INT NOT NULL,  
-csee TEXT NOT NULL,
-top INT NOT NULL,
-temp INT NOT NULL, 
-fname TEXT, 
-desc TEXT
-'''
-
-
-class Resource:
-    def __init__(self, id):
-        c = get_cursor()
-        logging.info(str(id))
-        c[1].execute(f"SELECT * FROM resource WHERE id = ?", (id, ))
-        dis = c[1].fetchall()[0]
-        logging.info(str(id) + "," + str(dis))
-        self.info = dis  # 全部信息
-        self.id = dis[0]
-        if dis[9] == "YES":
-            self.type = 0
-            self.fname = True
-            self.type_sh = "互联网"
-        elif dis[9] == "NO":
-            self.type = 1
-            self.fname = False
-            self.type_sh = "班级论坛"
-        else:
-            self.type = 2
-            self.fname = None
-            self.type_sh = dis[9]
-        self.url = f"/resource/{dis[0]}"
-        self.turl = f"./resource/{dis[0]}.txt"
-        self.father = 0
-        self.title = dis[2]
-        self.subject = dis[3]
-        self.pub_time = dis[4]
-        self.pub_id = dis[5]
-        c[1].execute(f"SELECT * FROM users WHERE id = ?", (self.pub_id, ))
-        al = c[1].fetchall()
-        if len(al) == 0:
-            dat = (48, '游客', '', '游客', 0, 0, 0, 0, '48.png')
-        else:
-            dat = al[0]
-        self.pub_name = dat[1]
-        self.pub_pic = dat[8]
-        self.pub_truename = dat[3]
-        self.csee = 'all'
-        self.csee_cnt = -1
-        self.top = 0
-        self.temp = 0
-        f = open(self.turl, 'r', encoding='utf-8')  # 具体内容
-        self.all_data = f.read()  # 未经渲染的内容
-        f.close()
-        self.main_data = b_render(self.all_data)[0:50]  # 摘要
-        self.main_data += "..."
-        self.title_sh = self.title
-        self.desc = dis[10]
-        c[0].commit()
-        c[0].close()
 
 
 '''
@@ -492,7 +324,7 @@ class User:
             self.admin = 0
         else:
             c = get_cursor()
-            c[1].execute(f"SELECT * FROM users WHERE id = ?", (id, ))
+            c[1].execute(f"SELECT * FROM users WHERE id = '{id}'")
             dis = c[1].fetchall()[0]
             self.info = dis
             self.id = dis[0]
@@ -511,7 +343,7 @@ class User:
         if id == None:
             id = self.id
         c = get_cursor()
-        logging.info(
+        print(
             f"UPDATE users SET username = '{self.username}', password = '{self.password}', name = '{self.name}', level = {self.lsc[0]}, score = {self.lsc[1]}, active = {self.lsc[2]}, admin = {self.admin}, picpath = {self.picpath},  desc = {self.desc} WHERE id = {id}")
         c[0].execute(
             f"UPDATE users SET username = ?, password = ?, name = ?, level = ?, score = ?, active = ?, admin = ?, picpath = ?, desc = ? WHERE id = ?",
@@ -533,6 +365,3 @@ admin INT NOT NULL,                             7
 picpath TEXT NOT NULL,                          8
 desc TEXT                                       9
 '''
-
-if __name__ == '__main__':
-    print("RUNNING DATABASE.PY IN DEBUG MODE. PRINT SOME DEBUG INFO!")
